@@ -1,0 +1,110 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build & Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: promptshark-linux-amd64
+            goos: linux
+            goarch: amd64
+            ext: ""
+            bin_ext: ""
+          - os: windows-latest
+            artifact_name: promptshark-windows-amd64
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+            bin_ext: ".exe"
+          - os: macos-latest
+            artifact_name: promptshark-macos-arm64
+            goos: darwin
+            goarch: arm64
+            ext: ""
+            bin_ext: ""
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          
+      - name: Build C++ Core
+        run: |
+          mkdir build
+          cd build
+          cmake ..
+          cmake --build . --config Release
+
+      - name: Build Go Proxy
+        env:
+          CGO_ENABLED: 1
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          cd proxy
+          go build -ldflags="-s -w" -o agent_supervisor${{ matrix.ext }} .
+
+      - name: Package Release (Unix)
+        if: matrix.os != 'windows-latest'
+        run: |
+          mkdir -p release/promptshark/build
+          mkdir -p release/promptshark/proxy
+          mkdir -p release/promptshark/db
+          cp build/core_engine release/promptshark/build/
+          cp proxy/agent_supervisor release/promptshark/proxy/
+          cp loop_config.txt release/promptshark/
+          cp db/schema.sql release/promptshark/db/
+          cp README.md release/promptshark/
+          cd release
+          tar -czvf ../${{ matrix.artifact_name }}.tar.gz promptshark/
+
+      - name: Package Release (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir release\promptshark\build
+          mkdir release\promptshark\proxy
+          mkdir release\promptshark\db
+          cp build\Release\core_engine.exe release\promptshark\build\
+          cp proxy\agent_supervisor.exe release\promptshark\proxy\
+          cp loop_config.txt release\promptshark\
+          cp db\schema.sql release\promptshark\db\
+          cp README.md release\promptshark\
+          cd release
+          Compress-Archive -Path promptshark\* -DestinationPath ..\${{ matrix.artifact_name }}.zip
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          body: |
+            **PromptShark v0.1.0 — The Initial Release** 🦈
+            
+            ### What's New
+            - 🔍 **Intercept & Inspect:** Real-time API monitoring.
+            - 🚨 **C++ Loop Detector:** Hash-based pattern detection to prevent runaway tool calls.
+            - ⏪ **Time-Travel Replay:** Edit and restart agents from any step using cached SQLite responses.
+            - 💸 **Cost & Latency Tracking:** Dynamic AI model pricing fetched from OpenRouter.
+            - ⚡ **Chaos Mode:** UI toggle for 429 Rate Limit error injection.
+            
+            ### Downloads
+            
+            | File | Platform |
+            |---|---|
+            | `promptshark-linux-amd64.tar.gz` | Linux x64 |
+            | `promptshark-macos-arm64.tar.gz` | macOS Apple Silicon |
+            | `promptshark-windows-amd64.zip` | Windows x64 |
+            
+            Just download, extract, and run `proxy/agent_supervisor` (`proxy\agent_supervisor.exe` on Windows).
+          files: |
+            *.tar.gz
+            *.zip

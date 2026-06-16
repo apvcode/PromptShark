@@ -1,0 +1,9 @@
+# PromptShark Loop Detector Configuration
+# Place this file in the project root directory.
+
+# How many consecutive identical tool calls to trigger a loop alarm
+THRESHOLD=3
+
+# Set to true to ignore tool arguments and ONLY match on the function name
+# Example: if true, scrape(url="A") and scrape(url="B") will be considered identical.
+IGNORE_ARGS=false

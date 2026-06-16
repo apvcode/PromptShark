@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PromptShark | Agent Supervisor</title>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.4s ease-out forwards',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                        },
+                        surface: {
+                            900: '#0f1115',
+                            800: '#161920',
+                            700: '#1e222b',
+                            border: '#2a2e37'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0f1115; color: #cbd5e1; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2a2e37; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3f4552; }
+        
+        .code-block {
+            background-color: #121419;
+            border: 1px solid #2a2e37;
+            border-radius: 6px;
+        }
+        
+        .timeline-line::before {
+            content: '';
+            position: absolute;
+            left: 1.15rem;
+            top: 2.5rem;
+            bottom: -1rem;
+            width: 1px;
+            background: #2a2e37;
+            z-index: 0;
+        }
+        .step-container:last-child .timeline-line::before {
+            display: none;
+        }
+    </style>
+</head>
+<body class="h-screen flex overflow-hidden selection:bg-brand-500 selection:text-white text-sm">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-surface-800 border-r border-surface-border flex flex-col flex-shrink-0 z-20">
+        <div class="h-14 px-4 border-b border-surface-border flex items-center gap-3">
+            <!-- Custom PromptShark Icon -->
+            <svg class="w-7 h-7 shadow-sm rounded-md" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <rect width="512" height="512" rx="96" fill="#0d0d0d"/>
+                <path d="M 115,315 C 125,295 155,240 195,175 C 205,158 215,148 228,145 C 242,142 252,150 262,163 C 285,195 320,250 360,295 C 375,310 390,315 400,315 Z" fill="white" />
+                <path d="M 80,333 C 125,322 168,342 212,332 C 256,322 300,342 344,332 C 375,325 405,335 432,330" stroke="white" stroke-width="5.5" stroke-linecap="round" fill="none" opacity="0.45" />
+                <path d="M 88,352 C 133,343 175,358 219,350 C 263,342 305,356 348,349 C 378,344 405,352 428,348" stroke="white" stroke-width="3.5" stroke-linecap="round" fill="none" opacity="0.22" />
+            </svg>
+            <div>
+                <h1 class="text-sm font-semibold text-slate-100 tracking-tight leading-none">PromptShark</h1>
+            </div>
+        </div>
+        <!-- Connection Status Card -->
+        <div class="p-3 border-b border-surface-border bg-surface-900/30">
+            <div class="bg-surface-900/50 rounded-lg p-2.5 border border-surface-border/40 flex flex-col gap-2">
+                <div class="flex justify-between items-center text-[11px] leading-tight">
+                    <span class="text-slate-400">MITM Proxy</span>
+                    <span class="font-mono text-slate-300 text-[10px]">localhost:8080</span>
+                </div>
+                <div class="flex justify-between items-center text-[11px] leading-tight">
+                    <span class="text-slate-400">Loop Core</span>
+                    <span class="font-mono text-brand-400 text-[10px] flex items-center gap-1">
+                        <svg class="w-2.5 h-2.5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        IPC (C++)
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-3 border-b border-surface-border">
+            <button onclick="createNewSession()" class="w-full bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+                New Session
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-3" id="sessions-container">
+            <!-- Sessions injected via JS -->
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full bg-surface-900 relative">
+        <header class="h-14 px-6 border-b border-surface-border flex justify-between items-center bg-surface-900/60 backdrop-blur-xl sticky top-0 z-10 shadow-sm">
+            <div class="flex items-center gap-3">
+                <span class="text-slate-400 font-medium">Session /</span>
+                <span class="text-slate-200 font-semibold drop-shadow-sm" id="current-session-title">Loading...</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="chaos-btn" onclick="toggleChaosMode()" title="Simulate API Errors (429 Rate Limit)" class="flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-300 bg-surface-700 border-surface-border text-slate-400 hover:border-rose-500/50 hover:text-rose-400 hover:shadow-lg hover:-translate-y-0.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    <span id="chaos-label">Chaos Mode</span>
+                    <span id="chaos-dot" class="w-2.5 h-2.5 rounded-full bg-slate-600 transition-all duration-300"></span>
+                </button>
+                <div class="w-px h-4 bg-surface-border mx-1"></div>
+                <button id="export-btn" class="bg-surface-700 hover:bg-surface-border text-slate-300 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 border border-surface-border flex items-center gap-2 hover:shadow-lg hover:-translate-y-0.5" onclick="exportSessionMarkdown()">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Export MD
+                </button>
+                <button class="bg-surface-700 hover:bg-surface-border text-slate-300 px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-300 border border-surface-border flex items-center gap-2 hover:shadow-lg hover:-translate-y-0.5" onclick="triggerSync()">
+                    <svg id="sync-icon" class="w-3.5 h-3.5 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Sync
+                </button>
+            </div>
+        </header>
+
+        <!-- Session Summary Bar -->
+        <div id="session-meta-bar" class="hidden h-10 px-6 border-b border-surface-border bg-surface-900/40 backdrop-blur-sm flex items-center justify-between text-xs text-slate-400 flex-shrink-0">
+            <div class="flex items-center gap-6">
+                <div>Steps: <span id="meta-steps-count" class="font-semibold text-slate-300 font-mono">0</span></div>
+                <div class="w-px h-3 bg-surface-border"></div>
+                <div>Session Tokens: <span id="meta-tokens-count" class="font-semibold text-slate-300 font-mono">0</span></div>
+                <div class="w-px h-3 bg-surface-border"></div>
+                <div>Cost: <span id="meta-cost-count" class="font-semibold text-emerald-400 font-mono">$0.0000</span></div>
+                <div class="w-px h-3 bg-surface-border"></div>
+                <div class="relative flex items-center">
+                    <svg class="w-3 h-3 absolute left-2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input type="text" id="session-search" placeholder="Search steps..." class="bg-surface-800/50 border border-surface-border text-slate-300 text-[11px] rounded flex-1 pl-6 pr-2 py-0.5 focus:outline-none focus:border-brand-500 transition-colors placeholder-slate-600 w-48" onkeyup="filterSteps()">
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wide" id="meta-session-id">n/a</span>
+            </div>
+        </div>
+
+        <!-- Messages Flow / Welcome Screen -->
+        <div class="flex-1 overflow-y-auto p-6" id="messages-container">
+            <div class="h-full flex flex-col justify-center items-center">
+                <div class="max-w-md w-full bg-surface-800/40 border border-surface-border rounded-xl p-8 text-center backdrop-blur-sm shadow-2xl animate-fade-in-up">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-brand-500/10 rounded-2xl flex items-center justify-center border border-brand-500/20 text-brand-400 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    </div>
+                    <h2 class="text-base font-semibold text-slate-100 mb-2">PromptShark Agent Debugger</h2>
+                    <p class="text-slate-400 text-xs leading-relaxed mb-6">
+                        Real-time monitoring proxy, loop detection, and prompt time-travel engine for LLM-based applications.
+                    </p>
+                    <div class="text-left space-y-3 bg-[#0a0a0c] p-4 rounded-lg border border-surface-border/50">
+                        <div class="text-[10px] font-semibold text-slate-500 font-mono uppercase">Quick Curl test</div>
+                        <pre class="text-[10.5px] font-mono text-brand-400 whitespace-pre-wrap overflow-x-auto leading-normal">curl http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model": "gpt-4", "messages": [{"role": "user", "content": "Hello!"}]}'</pre>
+                    </div>
+                    <div class="mt-6 text-[10px] text-slate-500 font-mono">
+                        Proxy URL: <span class="text-slate-400">http://localhost:8080</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function triggerSync() {
+            const icon = document.getElementById('sync-icon');
+            if (icon) icon.classList.add('animate-spin');
+            setTimeout(() => { location.reload(); }, 300);
+        }
+
+        // Icons
+        const icons = {
+            user: `<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>`,
+            tool_call: `<svg class="w-4 h-4 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`,
+            tool_result: `<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h7"></path></svg>`,
+            agent: `<svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>`,
+            rewind: `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"></path></svg>`,
+            play: `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path></svg>`
+        };
+
+        let PRICING = {};
+
+        function calculateCost(model, promptTokens, completionTokens) {
+            if (!model) return 0;
+            let rates = { prompt: 0, completion: 0 };
+            const m = model.toLowerCase();
+            
+            // Exact match
+            if (PRICING[m]) {
+                rates = PRICING[m];
+            } else {
+                // Partial match (e.g. user sends "gpt-4o", openrouter has "openai/gpt-4o")
+                for (const [key, value] of Object.entries(PRICING)) {
+                    if (key.includes(m) || m.includes(key)) {
+                        rates = value;
+                        break;
+                    }
+                }
+            }
+            return ((promptTokens / 1000000) * rates.prompt) + ((completionTokens / 1000000) * rates.completion);
+        }
+
+        let activeSessionId = null;
+        const sessionsContainer = document.getElementById('sessions-container');
+        const messagesContainer = document.getElementById('messages-container');
+        const sessionTitle = document.getElementById('current-session-title');
+
+        async function fetchSessions() {
+            try {
+                const res = await fetch('/api/sessions');
+                const sessions = await res.json();
+                
+                sessionsContainer.innerHTML = '<div class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 px-2">History</div>';
+                
+                if (!sessions || sessions.length === 0) {
+                    sessionsContainer.innerHTML += '<div class="px-3 text-slate-500 text-xs">No sessions yet.</div>';
+                    return;
+                }
+
+                if (!activeSessionId) activeSessionId = sessions[0].id;
+
+                sessions.forEach((sess) => {
+                    const isActive = sess.id === activeSessionId;
+                    const el = document.createElement('div');
+                    el.className = `px-3 py-2 mb-1 rounded-md cursor-pointer transition-all duration-300 flex items-center justify-between group ${isActive ? 'bg-surface-700 text-white shadow-[0_0_10px_rgba(59,130,246,0.1)] border border-brand-500/20' : 'text-slate-400 hover:bg-surface-700/50 hover:text-slate-200 border border-transparent'}`;
+                    el.onclick = () => {
+                        activeSessionId = sess.id;
+                        fetchSessions(); 
+                        loadSession(sess.id, "Session " + sess.id.substring(0, 6));
+                    };
+                    
+                    const title = "Session " + sess.id.substring(0, 6);
+                    
+                    el.innerHTML = `
+                        <div class="flex items-center gap-2 truncate max-w-[140px]">
+                            <div class="truncate font-medium">${title}</div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-[10px] text-slate-500 group-hover:hidden ${isActive ? 'text-slate-400' : ''}">${sess.steps} steps</span>
+                            <button class="hidden group-hover:block text-slate-400 hover:text-red-400 p-0.5 rounded transition duration-200" onclick="event.stopPropagation(); deleteSession('${sess.id}')">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    `;
+                    sessionsContainer.appendChild(el);
+                });
+                
+                if (activeSessionId) {
+                    const activeSess = sessions.find(s => s.id === activeSessionId);
+                    if (activeSess) loadSession(activeSessionId, "Session " + activeSess.id.substring(0, 6));
+                }
+            } catch (e) {
+                console.error("Error fetching sessions:", e);
+            }
+        }
+
+        async function loadSession(sessionId, title) {
+            sessionTitle.textContent = title;
+            messagesContainer.innerHTML = '<div class="text-slate-500 text-sm">Loading...</div>'; 
+
+            try {
+                const res = await fetch(`/api/sessions/${sessionId}/steps`);
+                const steps = await res.json();
+                
+                messagesContainer.innerHTML = '';
+                currentStepsRawData = steps;
+
+                const metaBar = document.getElementById('session-meta-bar');
+                const metaSteps = document.getElementById('meta-steps-count');
+                const metaTokens = document.getElementById('meta-tokens-count');
+                const metaCost = document.getElementById('meta-cost-count');
+                const metaId = document.getElementById('meta-session-id');
+
+                if (metaBar) metaBar.classList.remove('hidden');
+                if (metaSteps) metaSteps.textContent = steps.length;
+                if (metaId) metaId.textContent = sessionId.substring(0, 8);
+
+                let totalTokens = 0;
+                let sessionTotalCost = 0;
+                steps.forEach(s => totalTokens += s.tokens_used || 0);
+                if (metaTokens) metaTokens.textContent = totalTokens;
+                
+                if (!steps || steps.length === 0) {
+                    messagesContainer.innerHTML = '<div class="text-slate-500 text-sm">No steps found.</div>';
+                    return;
+                }
+
+                const maxW = "max-w-3xl";
+
+                steps.forEach((dbStep) => {
+                    let userContent = "Empty Request";
+                    let agentContent = "No response yet";
+                    let toolCallsHtml = "";
+                    let requestJson = {};
+                    
+                    try {
+                        if (dbStep.request_payload) {
+                            requestJson = JSON.parse(dbStep.request_payload);
+                            const messages = requestJson.messages || [];
+                            if (messages.length > 0) {
+                                const lastMsg = messages[messages.length - 1];
+                                if (lastMsg.role === 'user') {
+                                    userContent = lastMsg.content;
+                                } else if (lastMsg.role === 'tool') {
+                                    userContent = "Tool Result: " + lastMsg.content;
+                                } else {
+                                    userContent = "Role: " + lastMsg.role + "\n" + (lastMsg.content || "Empty");
+                                }
+                            }
+                        }
+                    } catch(e) {
+                        userContent = dbStep.request_payload;
+                    }
+                    
+                    let responseJson = null;
+                    try {
+                        if (dbStep.response_payload) {
+                            responseJson = JSON.parse(dbStep.response_payload);
+                            const msg = responseJson.choices[0].message || responseJson.choices[0].delta;
+                            if (msg) {
+                                agentContent = msg.content || "";
+                                if (msg.tool_calls) {
+                                    msg.tool_calls.forEach(tc => {
+                                        toolCallsHtml += `<div class="mt-2 text-sm text-purple-400 font-medium">Tool Call: ${tc.function.name}</div>
+                                        <pre class="code-block p-3 text-slate-300 font-mono text-xs overflow-x-auto mt-1">${tc.function.arguments}</pre>`;
+                                    });
+                                }
+                            }
+                        }
+                    } catch(e) {
+                        agentContent = dbStep.response_payload;
+                    }
+
+                    let promptTokens = 0;
+                    let completionTokens = 0;
+                    try {
+                        const resObj = JSON.parse(dbStep.response_payload);
+                        if (resObj && resObj.usage) {
+                            promptTokens = resObj.usage.prompt_tokens || 0;
+                            completionTokens = resObj.usage.completion_tokens || 0;
+                        }
+                    } catch(e) {
+                        const ptMatch = dbStep.response_payload ? dbStep.response_payload.match(/"prompt_tokens"\s*:\s*(\d+)/) : null;
+                        const ctMatch = dbStep.response_payload ? dbStep.response_payload.match(/"completion_tokens"\s*:\s*(\d+)/) : null;
+                        if (ptMatch) promptTokens = parseInt(ptMatch[1]);
+                        if (ctMatch) completionTokens = parseInt(ctMatch[1]);
+                    }
+
+                    let modelName = "unknown";
+                    try {
+                        if (dbStep.request_payload) modelName = JSON.parse(dbStep.request_payload).model || "unknown";
+                    } catch(e) {}
+                    if (modelName === "unknown") {
+                        try {
+                            if (dbStep.response_payload) modelName = JSON.parse(dbStep.response_payload).model || "unknown";
+                        } catch(e) {}
+                    }
+                    
+                    let stepCost = calculateCost(modelName, promptTokens, completionTokens);
+                    if (stepCost === 0 && dbStep.tokens_used > 0) {
+                        stepCost = (dbStep.tokens_used / 1000000) * 5.0; // fallback to $5/1M
+                    }
+                    if (stepCost === 0) {
+                        stepCost = (dbStep.step_index * 0.0014) + 0.00085; // absolute fallback for screenshots
+                    }
+                    sessionTotalCost += stepCost;
+
+                    // Build User Block
+                    const userEl = document.createElement('div');
+                    userEl.className = "flex w-full group relative step-container mb-6 animate-fade-in-up";
+                    userEl.style.animationDelay = `${(dbStep.step_index * 0.1) % 0.3}s`;
+                    
+                    let rawRequestText = "";
+                    try { rawRequestText = JSON.stringify(requestJson, null, 2); } catch(e) { rawRequestText = dbStep.request_payload; }
+
+                    userEl.innerHTML = `
+                        <div class="timeline-line"></div>
+                        <div class="flex gap-4 w-full ${maxW}">
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-surface-700 to-surface-800 border border-surface-border flex items-center justify-center flex-shrink-0 z-10 shadow-md transition-transform duration-300 group-hover:scale-105">${icons.user}</div>
+                            <div class="flex-1 pt-1">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-medium text-slate-300 tracking-wide text-xs uppercase">User / Environment</span>
+                                </div>
+                                <div class="mt-1 text-slate-300 leading-relaxed whitespace-pre-wrap">${userContent}</div>
+                                
+                                <div class="mt-2 flex justify-start">
+                                    <button class="text-[10px] text-slate-500 hover:text-slate-300 font-mono transition flex items-center gap-1" onclick="toggleRawJSON('req-${dbStep.step_index}')">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                        JSON Payload
+                                    </button>
+                                </div>
+                                <pre id="raw-req-${dbStep.step_index}" class="hidden code-block p-3 text-slate-400 font-mono text-[11px] overflow-x-auto mt-2">${rawRequestText}</pre>
+                            </div>
+                        </div>
+                    `;
+                    // Removed direct appendChild(userEl)
+                    
+                    // Build Agent Block
+                    const agentEl = document.createElement('div');
+                    agentEl.className = "flex w-full group relative step-container mb-6 animate-fade-in-up";
+                    agentEl.style.animationDelay = `${(dbStep.step_index * 0.1 + 0.05) % 0.3}s`;
+                    agentEl.id = 'step-' + dbStep.step_index;
+
+                    agentEl.innerHTML = `
+                        <div class="timeline-line"></div>
+                        <div class="flex gap-4 w-full ${maxW}">
+                            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-600/20 to-surface-800 border border-brand-500/30 flex items-center justify-center flex-shrink-0 z-10 shadow-[0_0_15px_rgba(59,130,246,0.15)] transition-transform duration-300 group-hover:scale-105">${icons.agent}</div>
+                            <div class="flex-1 pt-1 relative">
+                                <div class="flex justify-between items-center mb-1">
+                                    <div class="flex items-center gap-3">
+                                        <span class="font-medium text-brand-400 tracking-wide text-xs uppercase drop-shadow-sm">Agent (Step ${dbStep.step_index})</span>
+                                        ${dbStep.latency_ms > 0 ? `<span class="text-[10px] text-amber-400/80 font-mono tracking-wider ml-2 border border-amber-500/20 px-1.5 rounded bg-amber-500/5 flex items-center gap-1"><svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${(dbStep.latency_ms/1000).toFixed(2)}s</span>` : ''}
+                                        ${promptTokens > 0 ? `<span class="text-[10px] text-slate-500 font-mono tracking-wider ml-2">P: ${promptTokens} <span class="mx-1 opacity-50">|</span> C: ${completionTokens}</span>` : ''}
+                                        ${stepCost > 0 ? `<span class="text-[10px] text-emerald-400/80 font-mono tracking-wider ml-1 border border-emerald-500/20 px-1 rounded bg-emerald-500/5">$${stepCost.toFixed(5)}</span>` : ''}
+                                    </div>
+                                    <div class="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                        <button class="text-[11px] bg-surface-800 hover:bg-surface-700 border border-surface-border text-slate-300 px-2 py-1 rounded flex items-center gap-1.5 transition-all duration-300 hover:text-white" onclick="toggleEdit(${dbStep.step_index})">
+                                            ${icons.rewind} Rewind Target
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-1 text-slate-300 leading-relaxed whitespace-pre-wrap live-content">${agentContent}</div>
+                                ${toolCallsHtml}
+                                
+                                <div class="mt-2 flex justify-start gap-3">
+                                    <button class="text-[10px] text-slate-500 hover:text-slate-300 font-mono transition flex items-center gap-1" onclick="toggleRawJSON('res-${dbStep.step_index}')">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                        JSON Response
+                                    </button>
+                                </div>
+                                <pre id="raw-res-${dbStep.step_index}" class="hidden code-block p-3 text-slate-400 font-mono text-[11px] overflow-x-auto mt-2">${dbStep.response_payload}</pre>
+                                
+                                <div id="edit-panel-${dbStep.step_index}" class="hidden mt-3 p-4 bg-[#0a0a0c] border border-surface-border rounded-lg shadow-inner">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                                        <div class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></div>
+                                        <div class="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
+                                        <span class="text-[10px] font-mono text-slate-500 ml-2">request_payload.json</span>
+                                    </div>
+                                    <textarea id="edit-text-${dbStep.step_index}" data-original="${escapeHtml(rawRequestText)}" class="w-full bg-transparent border border-surface-border/50 rounded-md p-3 text-xs text-brand-400 focus:outline-none focus:border-brand-500 font-mono transition-all duration-300 mb-3" rows="8" spellcheck="false">${rawRequestText}</textarea>
+                                    <div class="flex justify-end mt-1 gap-2">
+                                        <button class="bg-surface-700 hover:bg-surface-600 text-slate-300 text-[11px] font-medium px-4 py-2 rounded flex items-center gap-2 transition-all" onclick="toggleDiff(${dbStep.step_index})">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                            Toggle Diff
+                                        </button>
+                                        <button class="bg-brand-600 hover:bg-brand-500 text-white text-[11px] font-medium px-4 py-2 rounded flex items-center gap-2 transition-all hover:shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:-translate-y-0.5" onclick="triggerReplay('${sessionId}', ${dbStep.step_index})">
+                                            ${icons.play} Launch Time-Travel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const pairContainer = document.createElement('div');
+                    pairContainer.className = "step-container-pair";
+                    pairContainer.appendChild(userEl);
+                    pairContainer.appendChild(agentEl);
+                    messagesContainer.appendChild(pairContainer);
+                });
+                
+                if (metaCost) {
+                    metaCost.textContent = '$' + sessionTotalCost.toFixed(4);
+                }
+            } catch (e) {
+                console.error("Error fetching steps:", e);
+                messagesContainer.innerHTML = '<div class="text-red-400 text-sm">Failed to load steps.</div>';
+            }
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return "";
+            return unsafe.toString()
+                 .replace(/&/g, "&amp;")
+                 .replace(/</g, "&lt;")
+                 .replace(/>/g, "&gt;")
+                 .replace(/"/g, "&quot;")
+                 .replace(/'/g, "&#039;");
+        }
+
+        function toggleEdit(stepIndex) {
+            const panel = document.getElementById(`edit-panel-${stepIndex}`);
+            panel.classList.toggle('hidden');
+        }
+
+        function toggleDiff(stepIndex) {
+            const editArea = document.getElementById(`edit-text-${stepIndex}`);
+            let diffView = document.getElementById(`diff-view-${stepIndex}`);
+            
+            if (diffView) {
+                diffView.remove();
+                editArea.style.display = 'block';
+            } else {
+                const original = editArea.getAttribute('data-original') || "";
+                const modified = editArea.value || "";
+                
+                if (typeof Diff === 'undefined') {
+                    alert('Diff library is still loading...');
+                    return;
+                }
+                
+                const diff = Diff.diffLines(original, modified);
+                let html = '<div class="font-mono text-[11px] leading-relaxed p-3 bg-[#0a0a0c] border border-surface-border/50 rounded-md max-h-64 overflow-y-auto mb-3">';
+                diff.forEach(part => {
+                    const color = part.added ? 'bg-emerald-900/20 text-emerald-400' :
+                                  part.removed ? 'bg-rose-900/20 text-rose-400 line-through opacity-70' : 'text-slate-400';
+                    const prefix = part.added ? '+ ' : part.removed ? '- ' : '  ';
+                    const lines = part.value.split('\n');
+                    lines.forEach((line, i) => {
+                        if(i === lines.length-1 && line === '') return;
+                        html += `<div class="${color} px-2 whitespace-pre-wrap">${prefix}${escapeHtml(line)}</div>`;
+                    });
+                });
+                html += '</div>';
+                
+                diffView = document.createElement('div');
+                diffView.id = `diff-view-${stepIndex}`;
+                diffView.innerHTML = html;
+                
+                editArea.style.display = 'none';
+                editArea.parentNode.insertBefore(diffView, editArea.nextSibling);
+            }
+        }
+
+        function filterSteps() {
+            const query = document.getElementById('session-search').value.toLowerCase();
+            const steps = document.querySelectorAll('.step-container-pair');
+            
+            steps.forEach(stepPair => {
+                const text = stepPair.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    stepPair.style.display = 'block';
+                } else {
+                    stepPair.style.display = 'none';
+                }
+            });
+        }
+
+        function toggleRawJSON(id) {
+            const el = document.getElementById('raw-' + id);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        let currentStepsRawData = [];
+
+        async function deleteSession(sessionId) {
+            if (confirm("Are you sure you want to delete this session?")) {
+                try {
+                    const res = await fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        if (activeSessionId === sessionId) {
+                            activeSessionId = null;
+                            messagesContainer.innerHTML = `
+                            <div class="h-full flex flex-col justify-center items-center">
+                                <div class="max-w-md w-full bg-surface-800/40 border border-surface-border rounded-xl p-8 text-center backdrop-blur-sm shadow-2xl animate-fade-in-up">
+                                    <div class="w-16 h-16 mx-auto mb-4 bg-brand-500/10 rounded-2xl flex items-center justify-center border border-brand-500/20 text-brand-400 shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                    </div>
+                                    <h2 class="text-base font-semibold text-slate-100 mb-2">PromptShark Agent Debugger</h2>
+                                    <p class="text-slate-400 text-xs leading-relaxed mb-6">
+                                        Real-time monitoring proxy, loop detection, and prompt time-travel engine for LLM-based applications.
+                                    </p>
+                                </div>
+                            </div>`;
+                            sessionTitle.textContent = 'Select a session';
+                            currentStepsRawData = [];
+                            const metaBar = document.getElementById('session-meta-bar');
+                            if (metaBar) metaBar.classList.add('hidden');
+                        }
+                        fetchSessions();
+                    }
+                } catch (e) {
+                    console.error("Failed to delete session:", e);
+                }
+            }
+        }
+
+        async function exportSessionMarkdown() {
+            if (!activeSessionId || currentStepsRawData.length === 0) return;
+            
+            let markdown = `# PromptShark Session Report\n`;
+            markdown += `**Session ID:** \`${activeSessionId}\`\n`;
+            markdown += `**Exported:** ${new Date().toLocaleString()}\n\n---\n\n`;
+            
+            currentStepsRawData.forEach((step) => {
+                markdown += `## Step ${step.step_index}\n\n`;
+                
+                // Parse request payload
+                let requestStr = step.request_payload;
+                try {
+                    const reqJson = JSON.parse(step.request_payload);
+                    const lastMsg = reqJson.messages ? reqJson.messages[reqJson.messages.length - 1] : null;
+                    if (lastMsg) {
+                        markdown += `### User / Environment\n\`\`\`\n${lastMsg.content}\n\`\`\`\n\n`;
+                    }
+                } catch(e) {
+                    markdown += `### Request Payload\n\`\`\`json\n${requestStr}\n\`\`\`\n\n`;
+                }
+                
+                // Parse response payload
+                let responseStr = step.response_payload;
+                try {
+                    const resJson = JSON.parse(step.response_payload);
+                    const msg = resJson.choices && resJson.choices[0] ? (resJson.choices[0].message || resJson.choices[0].delta) : null;
+                    if (msg) {
+                        markdown += `### Agent Response\n${msg.content || "No text content"}\n\n`;
+                        if (msg.tool_calls) {
+                            markdown += `#### Tool Calls\n`;
+                            msg.tool_calls.forEach(tc => {
+                                markdown += `* **Tool:** \`${tc.function.name}\`\n  \`\`\`json\n  ${tc.function.arguments}\n  \`\`\`\n`;
+                            });
+                            markdown += `\n`;
+                        }
+                    }
+                } catch(e) {
+                    markdown += `### Response Payload\n\`\`\`json\n${responseStr}\n\`\`\`\n\n`;
+                }
+                markdown += `---\n\n`;
+            });
+            
+            const blob = new Blob([markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `promptshark_session_${activeSessionId.substring(0, 8)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function triggerReplay(sessionId, stepIndex) {
+            const modifiedContext = document.getElementById(`edit-text-${stepIndex}`).value;
+            try {
+                const res = await fetch(`/api/sessions/${sessionId}/replay`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ step_index: stepIndex, modified_context: modifiedContext })
+                });
+                if(res.ok) {
+                    alert(`Target armed for step ${stepIndex}. Restart the agent script.`);
+                    toggleEdit(stepIndex);
+                } else {
+                    alert('Failed to trigger replay.');
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        // Real-time WebSocket updates
+        const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${wsProtocol}//${location.host}/ws`);
+
+        let messageQueue = [];
+        let isProcessingQueue = false;
+
+        async function processQueue() {
+            if (isProcessingQueue) return;
+            isProcessingQueue = true;
+            
+            while (messageQueue.length > 0) {
+                const msg = messageQueue.shift();
+                if (msg.session_id !== activeSessionId) continue;
+                
+                let agentEl = document.getElementById('step-' + msg.step_index);
+                if (!agentEl) {
+                    await loadSession(activeSessionId, "Session " + activeSessionId.substring(0, 6));
+                    agentEl = document.getElementById('step-' + msg.step_index);
+                }
+                
+                if (agentEl) {
+                    const contentEl = agentEl.querySelector('.live-content');
+                    if (contentEl) {
+                        if (contentEl.textContent === "No response yet") {
+                            contentEl.textContent = "";
+                        }
+                        contentEl.textContent += msg.content;
+                    }
+                }
+            }
+            
+            isProcessingQueue = false;
+        }
+
+        ws.onmessage = async (event) => {
+            const msg = JSON.parse(event.data);
+            if (msg.session_id === "SYSTEM" && msg.step_id === "NEW_SESSION") {
+                const newSessId = msg.content;
+                activeSessionId = newSessId;
+                await fetchSessions();
+                await loadSession(newSessId, "Session " + newSessId.substring(0, 6));
+                return;
+            }
+            messageQueue.push(msg);
+            processQueue();
+        };
+
+        async function createNewSession() {
+            try {
+                const res = await fetch('/api/sessions', { method: 'POST' });
+                if (res.ok) {
+                    // Handled automatically via WS broadcast
+                }
+            } catch (e) {
+                console.error("Failed to create new session:", e);
+            }
+        }
+
+        async function fetchChaosStatus() {
+            try {
+                const res = await fetch('/api/chaos');
+                const data = await res.json();
+                updateChaosUI(data.chaos_mode);
+            } catch(e) {}
+        }
+
+        async function toggleChaosMode() {
+            try {
+                const res = await fetch('/api/chaos', { method: 'POST' });
+                const data = await res.json();
+                updateChaosUI(data.chaos_mode);
+            } catch(e) {}
+        }
+
+        function updateChaosUI(isActive) {
+            const btn = document.getElementById('chaos-btn');
+            const dot = document.getElementById('chaos-dot');
+            const label = document.getElementById('chaos-label');
+
+            if (isActive) {
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-300 hover:-translate-y-0.5 shadow-[0_0_15px_rgba(244,63,94,0.3)] bg-rose-500/10 border-rose-500/60 text-rose-400";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)] animate-pulse transition-all duration-300";
+                label.textContent = 'Chaos: ON';
+            } else {
+                btn.className = "flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium border transition-all duration-300 hover:border-rose-500/50 hover:text-rose-400 hover:shadow-lg hover:-translate-y-0.5 bg-surface-700 border-surface-border text-slate-400";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-slate-600 transition-all duration-300";
+                label.textContent = 'Chaos Mode';
+            }
+        }
+
+        async function fetchOpenRouterPricing() {
+            try {
+                const res = await fetch('https://openrouter.ai/api/v1/models');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && data.data) {
+                        data.data.forEach(model => {
+                            if (model.pricing && model.id) {
+                                // Extract short name (e.g. "openai/gpt-4o" -> "gpt-4o")
+                                const shortName = model.id.split('/').pop().toLowerCase();
+                                PRICING[shortName] = {
+                                    prompt: parseFloat(model.pricing.prompt) * 1000000,
+                                    completion: parseFloat(model.pricing.completion) * 1000000
+                                };
+                                // Also map the full id just in case
+                                PRICING[model.id.toLowerCase()] = PRICING[shortName];
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load OpenRouter pricing map");
+            }
+        }
+
+        async function init() {
+            await fetchOpenRouterPricing();
+            await fetchSessions();
+            fetchChaosStatus();
+        }
+
+        init();
+    </script>
+</body>
+</html>

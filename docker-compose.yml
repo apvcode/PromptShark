@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  promptshark:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./db:/app/db
+      - ./loop_config.txt:/app/loop_config.txt
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      # You can override the target LLM API here if needed:
+      # - TARGET_API=https://api.openai.com

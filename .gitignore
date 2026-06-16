@@ -1,0 +1,30 @@
+# Настройки редакторов
+.vscode/
+.vs/
+*.suo
+*.user
+
+# Скомпилированные файлы C/C++
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.out
+
+# Go
+/bin/
+/obj/
+
+# Frontend
+node_modules/
+dist/
+.env
+
+# SQLite Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# C++ Build
+build/

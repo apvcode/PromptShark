@@ -1,0 +1,96 @@
+openapi: 3.0.3
+info:
+  title: AgentSupervisor API
+  description: "Wireshark for LLMs - Time-Travel capabilities for AI agents"
+  version: 0.1.0
+paths:
+  /api/sessions:
+    get:
+      summary: Get all sessions
+      responses:
+        '200':
+          description: A list of recorded sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+  /api/sessions/{id}/steps:
+    get:
+      summary: Get all steps for a specific session
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The ID of the session
+      responses:
+        '200':
+          description: A list of steps for the session
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Step'
+  /api/sessions/{id}/replay:
+    post:
+      summary: Replay a session from a specific step
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: The ID of the session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                step_index:
+                  type: integer
+                  description: The step index to start the replay from
+                modified_context:
+                  type: string
+                  description: Manually modified context for the replay
+      responses:
+        '200':
+          description: Replay started successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "replay_started"
+components:
+  schemas:
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    Step:
+      type: object
+      properties:
+        id:
+          type: string
+        session_id:
+          type: string
+        step_index:
+          type: integer
+        request_payload:
+          type: string
+        response_payload:
+          type: string
+        tokens_used:
+          type: integer
