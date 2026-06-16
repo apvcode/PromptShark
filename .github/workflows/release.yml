@@ -90,15 +90,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           body: |
-            **PromptShark v0.1.0 — The Initial Release** 🦈
-            
-            ### What's New
-            - 🔍 **Intercept & Inspect:** Real-time API monitoring.
-            - 🚨 **C++ Loop Detector:** Hash-based pattern detection to prevent runaway tool calls.
-            - ⏪ **Time-Travel Replay:** Edit and restart agents from any step using cached SQLite responses.
-            - 💸 **Cost & Latency Tracking:** Dynamic AI model pricing fetched from OpenRouter.
-            - ⚡ **Chaos Mode:** UI toggle for 429 Rate Limit error injection.
-            
             ### Downloads
             
             | File | Platform |
